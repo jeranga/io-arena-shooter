@@ -217,7 +217,7 @@ class GameClient {
   }
   
   joinGame(playerName) {
-    this.socket = io('http://localhost:3000');
+    this.socket = io();
     
     this.socket.on('connect', () => {
       this.socket.emit('join', playerName);
