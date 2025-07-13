@@ -63,7 +63,8 @@ io.on('connection', (socket) => {
 });
 
 const PORT = process.env.PORT || 3000;
-httpServer.listen(PORT, () => {
-  console.log(`Server running on port ${PORT}`);
+const HOST = '0.0.0.0';
+httpServer.listen(PORT, HOST, () => {
+  console.log(`Server running on ${HOST}:${PORT}`);
   console.log(`Game server started with config:`, GAME_CONFIG);
 }); 
