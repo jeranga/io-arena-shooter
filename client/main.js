@@ -1,5 +1,3 @@
-import { io } from 'socket.io-client';
-
 class GameClient {
   constructor() {
     this.canvas = document.getElementById('gameCanvas');
