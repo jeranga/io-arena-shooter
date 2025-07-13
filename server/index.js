@@ -16,17 +16,17 @@ const io = new Server(httpServer, {
   }
 });
 
+// Health check endpoint (must come before catch-all route)
+app.get('/health', (req, res) => {
+  res.json({ status: 'ok', timestamp: Date.now() });
+});
+
 // Serve static files from client directory
 app.use(express.static('client'));
 
 // Serve index.html for all routes (SPA)
 app.get('*', (req, res) => {
   res.sendFile('index.html', { root: 'client' });
-});
-
-// Health check endpoint
-app.get('/health', (req, res) => {
-  res.json({ status: 'ok', timestamp: Date.now() });
 });
 
 // Initialize game server
