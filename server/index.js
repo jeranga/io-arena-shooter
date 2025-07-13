@@ -11,8 +11,9 @@ const app = express();
 const httpServer = createServer(app);
 const io = new Server(httpServer, {
   cors: {
-    origin: process.env.NODE_ENV === 'production' ? false : ["http://localhost:3001", "http://localhost:5173"],
-    methods: ["GET", "POST"]
+    origin: process.env.NODE_ENV === 'production' ? true : ["http://localhost:3001", "http://localhost:5173"],
+    methods: ["GET", "POST"],
+    credentials: true
   }
 });
 
