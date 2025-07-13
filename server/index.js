@@ -16,8 +16,13 @@ const io = new Server(httpServer, {
   }
 });
 
-// Serve static files
-app.use(express.static('public'));
+// Serve static files from client directory
+app.use(express.static('client'));
+
+// Serve index.html for all routes (SPA)
+app.get('*', (req, res) => {
+  res.sendFile('index.html', { root: 'client' });
+});
 
 // Health check endpoint
 app.get('/health', (req, res) => {
