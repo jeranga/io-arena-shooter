@@ -280,7 +280,9 @@ class GameClient {
       reconnectionAttempts: 5,
       reconnectionDelay: 1000,
       reconnectionDelayMax: 5000,
-      maxReconnectionAttempts: 5
+      maxReconnectionAttempts: 5,
+      forceNew: true,
+      withCredentials: false // Disable credentials to match server
     });
     
     this.setupSocketEvents();
@@ -389,6 +391,12 @@ class GameClient {
     
     this.socket.on('connect_error', (error) => {
       console.error('Connection error:', error);
+      console.error('Error details:', {
+        type: error.type,
+        description: error.description,
+        context: error.context,
+        message: error.message
+      });
       this.showConnectionStatus('Connection failed. Retrying...', 'error');
       
       // Clear connection timeout

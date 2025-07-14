@@ -20,6 +20,12 @@ app.use((req, res, next) => {
   res.setHeader('X-Frame-Options', 'DENY');
   res.setHeader('X-XSS-Protection', '1; mode=block');
   res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
+  
+  // Log Socket.IO requests for debugging
+  if (req.url && req.url.includes('/socket.io/')) {
+    console.log(`Socket.IO request: ${req.method} ${req.url} from ${req.ip}`);
+  }
+  
   next();
 });
 
@@ -53,21 +59,20 @@ setInterval(() => {
 
 const io = new Server(httpServer, {
   cors: {
-    origin: process.env.NODE_ENV === 'production' ? true : ["http://localhost:3001", "http://localhost:5173"],
+    origin: "*", // Allow all origins for now to debug
     methods: ["GET", "POST", "OPTIONS"],
-    credentials: true,
+    credentials: false, // Disable credentials to avoid CORS issues
     allowedHeaders: ["Content-Type", "Authorization"]
   },
   allowEIO3: true,
+  allowEIO4: true,
   transports: ['polling', 'websocket'],
   pingTimeout: 60000,
   pingInterval: 25000,
   upgradeTimeout: 10000,
   maxHttpBufferSize: 1e6,
-  allowRequest: (req, callback) => {
-    // Temporarily disable rate limiting to debug connection issues
-    callback(null, true);
-  }
+  connectTimeout: 45000,
+  // Remove allowRequest to use default Socket.IO request handling
 });
 
 // Health check endpoint (must come before catch-all route)
@@ -96,6 +101,11 @@ app.get('*', (req, res) => {
 
 // Initialize game server
 const gameServer = new GameServer(io, GAME_CONFIG);
+
+// Add Socket.IO debugging
+io.engine.on('connection_error', (err) => {
+  console.error('Socket.IO connection error:', err);
+});
 
 // Socket.IO connection handling
 io.on('connection', (socket) => {
