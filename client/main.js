@@ -283,6 +283,11 @@ class GameClient {
     
     this.socket.on('disconnect', (reason) => {
       console.log('Disconnected from server:', reason);
+      // Clear keep-alive interval
+      if (this.keepAliveInterval) {
+        clearInterval(this.keepAliveInterval);
+        this.keepAliveInterval = null;
+      }
       if (reason === 'io server disconnect') {
         // the disconnection was initiated by the server, reconnect manually
         this.socket.connect();
@@ -298,6 +303,14 @@ class GameClient {
       // Re-join the game after reconnection
       this.socket.emit('join', this.currentPlayerName);
     });
+    
+    // Keep-alive ping to prevent server from stopping
+    this.keepAliveInterval = setInterval(() => {
+      if (this.socket && this.socket.connected) {
+        // Send a ping to keep the connection alive
+        this.socket.emit('ping');
+      }
+    }, 30000); // Every 30 seconds
     
     this.joinScreen.style.display = 'none';
   }
