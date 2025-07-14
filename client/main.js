@@ -282,7 +282,11 @@ class GameClient {
       reconnectionDelayMax: 5000,
       maxReconnectionAttempts: 5,
       forceNew: true,
-      withCredentials: false // Disable credentials to match server
+      withCredentials: false, // Disable credentials to match server
+      // Force new session on reconnection to avoid session ID conflicts
+      auth: {
+        timestamp: Date.now()
+      }
     });
     
     this.setupSocketEvents();
@@ -413,6 +417,17 @@ class GameClient {
     
     this.socket.on('reconnect_error', (error) => {
       console.error('Reconnection error:', error);
+      
+      // If it's a session ID error, force a fresh connection
+      if (error.message && error.message.includes('Session ID unknown')) {
+        console.log('Session ID error detected, forcing fresh connection...');
+        this.socket.disconnect();
+        setTimeout(() => {
+          this.retryConnection();
+        }, 1000);
+        return;
+      }
+      
       this.showConnectionStatus('Reconnection failed. Please refresh.', 'error');
     });
     
@@ -492,6 +507,32 @@ class GameClient {
   retryConnection() {
     if (this.currentPlayerName) {
       console.log('Retrying connection...');
+      
+      // Force disconnect any existing socket
+      if (this.socket) {
+        this.socket.disconnect();
+        this.socket = null;
+      }
+      
+      // Clear any existing intervals
+      if (this.keepAliveInterval) {
+        clearInterval(this.keepAliveInterval);
+        this.keepAliveInterval = null;
+      }
+      
+      if (this.connectionTimeout) {
+        clearTimeout(this.connectionTimeout);
+        this.connectionTimeout = null;
+      }
+      
+      // Reset game state
+      this.gameState.players.clear();
+      this.gameState.bullets.clear();
+      this.gameState.loot.clear();
+      this.gameState.myId = null;
+      this.gameState.myPlayer = null;
+      
+      // Create fresh connection
       this.joinGame(this.currentPlayerName);
     }
   }

@@ -117,7 +117,29 @@ io.engine.on('connection_error', (err) => {
     url: err.req?.url,
     method: err.req?.method
   });
+  
+  // Log session ID errors specifically
+  if (err.message === 'Session ID unknown') {
+    console.log(`Session ID unknown for: ${err.context?.sid}`);
+  }
 });
+
+// Add session cleanup
+setInterval(() => {
+  const now = Date.now();
+  const staleSessions = [];
+  
+  // Clean up stale sessions (older than 5 minutes)
+  for (const [sessionId, session] of io.engine.clients) {
+    if (now - session.connectedAt > 300000) { // 5 minutes
+      staleSessions.push(sessionId);
+    }
+  }
+  
+  if (staleSessions.length > 0) {
+    console.log(`Cleaning up ${staleSessions.length} stale sessions`);
+  }
+}, 60000); // Check every minute
 
 // Socket.IO connection handling
 io.on('connection', (socket) => {
