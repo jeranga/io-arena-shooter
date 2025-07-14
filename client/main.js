@@ -217,7 +217,12 @@ class GameClient {
   }
   
   joinGame(playerName) {
-    this.socket = io();
+    this.socket = io({
+      transports: ['polling', 'websocket'],
+      upgrade: true,
+      rememberUpgrade: true,
+      timeout: 20000
+    });
     
     this.socket.on('connect', () => {
       this.socket.emit('join', playerName);
