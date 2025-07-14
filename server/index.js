@@ -25,9 +25,9 @@ app.use((req, res, next) => {
 
 // Rate limiting and abuse protection
 const connectionLimits = new Map();
-const MAX_CONNECTIONS_PER_IP = 5;
+const MAX_CONNECTIONS_PER_IP = 20; // Increased for shared networks (families, offices, etc.)
 const MAX_MESSAGES_PER_MINUTE = 10000; // 10k messages/minute = ~167/second (very generous)
-const MAX_JOIN_ATTEMPTS_PER_MINUTE = 10; // Prevent join spam
+const MAX_JOIN_ATTEMPTS_PER_MINUTE = 20; // Increased for shared networks
 const messageCounts = new Map();
 const joinAttempts = new Map();
 
@@ -66,12 +66,20 @@ const io = new Server(httpServer, {
   maxHttpBufferSize: 1e6,
   allowRequest: (req, callback) => {
     // Rate limiting and abuse protection
-    const clientIP = req.headers['x-forwarded-for'] || req.connection.remoteAddress;
+    // Handle Fly.io proxy headers correctly
+    const clientIP = req.headers['x-forwarded-for']?.split(',')[0]?.trim() || 
+                    req.headers['x-real-ip'] || 
+                    req.connection.remoteAddress;
+    
+    // Skip rate limiting for Fly.io internal IPs
+    if (clientIP === '127.0.0.1' || clientIP === '::1' || clientIP.startsWith('10.') || clientIP.startsWith('172.') || clientIP.startsWith('192.168.')) {
+      return callback(null, true);
+    }
     
     // Check connection limits per IP
     const ipData = connectionLimits.get(clientIP) || { count: 0, lastSeen: Date.now() };
     if (ipData.count >= MAX_CONNECTIONS_PER_IP) {
-      console.log(`Rejecting connection from ${clientIP}: too many connections`);
+      console.log(`Rejecting connection from ${clientIP}: too many connections (${ipData.count}/${MAX_CONNECTIONS_PER_IP})`);
       return callback(null, false);
     }
     
@@ -80,6 +88,7 @@ const io = new Server(httpServer, {
     ipData.lastSeen = Date.now();
     connectionLimits.set(clientIP, ipData);
     
+    console.log(`Connection from ${clientIP}: ${ipData.count}/${MAX_CONNECTIONS_PER_IP}`);
     callback(null, true);
   }
 });
@@ -253,12 +262,20 @@ io.on('connection', (socket) => {
     messageCounts.delete(socketId);
     
     // Update connection count for IP
-    const clientIP = socket.handshake.address;
-    const ipData = connectionLimits.get(clientIP);
-    if (ipData && ipData.count > 0) {
-      ipData.count--;
-      if (ipData.count === 0) {
-        connectionLimits.delete(clientIP);
+    const clientIP = socket.handshake.headers['x-forwarded-for']?.split(',')[0]?.trim() || 
+                    socket.handshake.headers['x-real-ip'] || 
+                    socket.handshake.address;
+    
+    // Skip cleanup for internal IPs
+    if (clientIP && !clientIP.startsWith('127.') && !clientIP.startsWith('::1') && 
+        !clientIP.startsWith('10.') && !clientIP.startsWith('172.') && !clientIP.startsWith('192.168.')) {
+      const ipData = connectionLimits.get(clientIP);
+      if (ipData && ipData.count > 0) {
+        ipData.count--;
+        console.log(`Disconnect from ${clientIP}: ${ipData.count}/${MAX_CONNECTIONS_PER_IP}`);
+        if (ipData.count === 0) {
+          connectionLimits.delete(clientIP);
+        }
       }
     }
   });
