@@ -124,22 +124,8 @@ io.engine.on('connection_error', (err) => {
   }
 });
 
-// Add session cleanup
-setInterval(() => {
-  const now = Date.now();
-  const staleSessions = [];
-  
-  // Clean up stale sessions (older than 5 minutes)
-  for (const [sessionId, session] of io.engine.clients) {
-    if (now - session.connectedAt > 300000) { // 5 minutes
-      staleSessions.push(sessionId);
-    }
-  }
-  
-  if (staleSessions.length > 0) {
-    console.log(`Cleaning up ${staleSessions.length} stale sessions`);
-  }
-}, 60000); // Check every minute
+// Note: Session cleanup removed to avoid server errors
+// Client-side reconnection logic should handle session ID issues
 
 // Socket.IO connection handling
 io.on('connection', (socket) => {
