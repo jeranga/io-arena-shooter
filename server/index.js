@@ -136,6 +136,16 @@ io.on('connection', (socket) => {
     gameServer.addPlayer(socket.id, sanitizedName);
     socket.emit('yourId', socket.id);
     
+    // Send game config to client
+    socket.emit('gameConfig', {
+      WEAPONS: GAME_CONFIG.WEAPONS,
+      PASSIVES: GAME_CONFIG.PASSIVES,
+      MAX_WEAPONS: GAME_CONFIG.MAX_WEAPONS,
+      MAX_PASSIVES: GAME_CONFIG.MAX_PASSIVES,
+      MAX_WEAPON_LEVEL: GAME_CONFIG.MAX_WEAPON_LEVEL,
+      MAX_PASSIVE_LEVEL: GAME_CONFIG.MAX_PASSIVE_LEVEL
+    });
+    
     // Update join attempt count
     joinData.count++;
     joinData.timestamp = Date.now();
@@ -213,7 +223,7 @@ io.on('connection', (socket) => {
     const devLevelUpData = messageCounts.get(socketId + '_dev') || { count: 0, timestamp: Date.now() };
     if (devLevelUpData.count >= 10) { // Max 10 dev level ups per minute
       console.log(`Dev level up rate limit exceeded for ${socketId}`);
-      return;
+      //return;
     }
     
     gameServer.handleDevLevelUp(socket.id);

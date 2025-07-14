@@ -45,6 +45,11 @@ class GameServer {
       legendaryUnlocks: {}, // Track legendary unlocks: { weaponId: true }
       legendaryChosen: {}, // Track which legendaries have been chosen: { weaponId: true }
       
+      // Level up state
+      isLevelingUp: false,
+      levelUpStartTime: 0,
+      levelUpTimeout: 10000, // 10 seconds
+      
       // Saws state tracking
       sawsState: {
         isActive: false,
@@ -77,9 +82,21 @@ class GameServer {
     
     if (availableUpgrades.length > 0) {
       player.pendingUpgrades = availableUpgrades;
+      player.isLevelingUp = true;
+      player.levelUpStartTime = Date.now();
+      
+      // Remove any existing saws when leveling up
+      for (const [bulletId, bullet] of this.bullets) {
+        if (bullet.ownerId === player.id && bullet.weaponId === 'saws') {
+          this.bullets.delete(bulletId);
+        }
+      }
+      
       this.io.to(player.id).emit('levelUp', { 
         level: player.level, 
-        upgrades: availableUpgrades 
+        upgrades: availableUpgrades,
+        startTime: player.levelUpStartTime,
+        timeout: player.levelUpTimeout
       });
     }
   }
@@ -97,6 +114,8 @@ class GameServer {
       const upgrade = player.pendingUpgrades[upgradeIndex];
       this.applyUpgrade(player, upgrade);
       player.pendingUpgrades = null;
+      player.isLevelingUp = false;
+      player.levelUpStartTime = 0;
       this.io.to(socketId).emit('upgradeSelected', { upgrade });
     }
   }
@@ -333,6 +352,9 @@ class GameServer {
   tick() {
     this.tickCount++;
     
+    // Check for level up timeouts
+    this.checkLevelUpTimeouts();
+    
     // Update player positions and handle input
     this.updatePlayers();
     
@@ -355,34 +377,34 @@ class GameServer {
   }
   
   updatePlayers() {
-    const deltaTime = 1 / this.config.TICK_RATE;
-    
-    for (const [id, player] of this.players) {
-      // Calculate effective speed with passive bonuses
-      let effectiveSpeed = player.speed;
-      
-      // Apply quickstep passive if player has it
-      if (player.passives.quickstep) {
-        const quickstepLevel = player.passives.quickstep;
-        const quickstepPassive = this.config.PASSIVES.quickstep;
-        const oldSpeed = effectiveSpeed;
-        effectiveSpeed *= (1 + (quickstepPassive.effect * quickstepLevel));
+    for (const [socketId, player] of this.players) {
+      // Skip movement if player is leveling up
+      if (player.isLevelingUp) {
+        // Still allow aiming but not movement
+        if (player.input.mouseX !== 0 || player.input.mouseY !== 0) {
+          player.angle = Math.atan2(player.input.mouseY, player.input.mouseX);
+        }
+        continue;
       }
       
-      // Handle movement
-      let vx = 0, vy = 0;
-      if (player.input.up) vy -= effectiveSpeed * deltaTime;
-      if (player.input.down) vy += effectiveSpeed * deltaTime;
-      if (player.input.left) vx -= effectiveSpeed * deltaTime;
-      if (player.input.right) vx += effectiveSpeed * deltaTime;
+      // Calculate movement based on input
+      let vx = 0;
+      let vy = 0;
       
-      // Normalize diagonal movement
-      if (vx !== 0 && vy !== 0) {
-        const magnitude = Math.sqrt(vx * vx + vy * vy);
-        vx = (vx / magnitude) * player.speed * deltaTime;
-        vy = (vy / magnitude) * player.speed * deltaTime;
+      if (player.input.up) vy -= player.speed / this.config.TICK_RATE;
+      if (player.input.down) vy += player.speed / this.config.TICK_RATE;
+      if (player.input.left) vx -= player.speed / this.config.TICK_RATE;
+      if (player.input.right) vx += player.speed / this.config.TICK_RATE;
+      
+      // Apply passive speed bonuses
+      const quickstepLevel = player.passives.quickstep || 0;
+      if (quickstepLevel > 0) {
+        const speedBonus = 1 + (this.config.PASSIVES.quickstep.effect * quickstepLevel);
+        vx *= speedBonus;
+        vy *= speedBonus;
       }
       
+      // Update velocity and position
       player.vx = vx;
       player.vy = vy;
       player.x += vx;
@@ -397,8 +419,8 @@ class GameServer {
         player.angle = Math.atan2(player.input.mouseY, player.input.mouseX);
       }
       
-      // Handle shooting - only if player has weapons
-      if (Object.keys(player.weapons).length > 0) {
+      // Handle shooting - only if player has weapons and is not leveling up
+      if (Object.keys(player.weapons).length > 0 && !player.isLevelingUp) {
         const now = Date.now();
         
         // Check each weapon's cooldown using cached stats
@@ -435,6 +457,9 @@ class GameServer {
   }
   
   updateSawsState(player, weaponId, now) {
+    // Don't update saws if player is leveling up
+    if (player.isLevelingUp) return;
+    
     const weaponStats = this.getWeaponStats(player, weaponId);
     if (!weaponStats) return;
     
@@ -806,6 +831,10 @@ class GameServer {
       for (const [playerId, player] of this.players) {
         if (bullet.ownerId === playerId) continue;
         if (bullet.ownerId === player.id) continue;
+        
+        // Skip damage if player is leveling up
+        if (player.isLevelingUp) continue;
+        
         const dx = bullet.x - player.x;
         const dy = bullet.y - player.y;
         const distance = Math.sqrt(dx * dx + dy * dy);
@@ -903,13 +932,22 @@ class GameServer {
       
       if (upgradeChoices.length > 0) {
         player.pendingUpgrades = upgradeChoices;
+        player.isLevelingUp = true;
+        player.levelUpStartTime = Date.now();
+        
+        // Remove any existing saws when leveling up
+        for (const [bulletId, bullet] of this.bullets) {
+          if (bullet.ownerId === player.id && bullet.weaponId === 'saws') {
+            this.bullets.delete(bulletId);
+          }
+        }
+        
         this.io.to(player.id).emit('levelUp', { 
           level: player.level, 
-          upgrades: upgradeChoices 
+          upgrades: upgradeChoices,
+          startTime: player.levelUpStartTime,
+          timeout: player.levelUpTimeout
         });
-      } else {
-        // No upgrades, but still level up
-        player.pendingUpgrades = null;
       }
     }
   }
@@ -1111,7 +1149,10 @@ class GameServer {
         weapons: p.weapons,
         passives: p.passives,
         legendaryUnlocks: p.legendaryUnlocks,
-        legendaryChosen: p.legendaryChosen
+        legendaryChosen: p.legendaryChosen,
+        isLevelingUp: p.isLevelingUp,
+        levelUpStartTime: p.levelUpStartTime,
+        levelUpTimeout: p.levelUpTimeout
       })),
       bullets: Array.from(this.bullets.values()).map(b => ({
         id: b.id,
@@ -1135,6 +1176,22 @@ class GameServer {
   destroy() {
     if (this.gameLoop) {
       clearInterval(this.gameLoop);
+    }
+  }
+
+  checkLevelUpTimeouts() {
+    const now = Date.now();
+    
+    for (const [playerId, player] of this.players) {
+      if (player.isLevelingUp && player.pendingUpgrades && player.pendingUpgrades.length > 0) {
+        const timeElapsed = now - player.levelUpStartTime;
+        
+        if (timeElapsed >= player.levelUpTimeout) {
+          // Auto-select the first upgrade
+          console.log(`Auto-selecting upgrade for player ${player.name} due to timeout`);
+          this.handleUpgradeSelection(playerId, 0);
+        }
+      }
     }
   }
 }

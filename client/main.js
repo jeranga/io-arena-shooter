@@ -13,6 +13,24 @@ class GameClient {
       myPlayer: null
     };
     
+    // Level up state
+    this.levelUpState = {
+      isLevelingUp: false,
+      startTime: 0,
+      timeout: 10000,
+      remainingTime: 0
+    };
+    
+    // Game config (received from server)
+    this.gameConfig = {
+      WEAPONS: {},
+      PASSIVES: {},
+      MAX_WEAPONS: 3,
+      MAX_PASSIVES: 3,
+      MAX_WEAPON_LEVEL: 5,
+      MAX_PASSIVE_LEVEL: 5
+    };
+    
     // Simple state tracking
     this.lastServerUpdate = 0;
     
@@ -54,21 +72,26 @@ class GameClient {
     this.upgradeModal = document.getElementById('upgradeModal');
     this.upgradeOptions = document.getElementById('upgradeOptions');
     
-    // Weapon system elements
+    // Weapon system elements - will be populated dynamically
     this.weaponSlots = document.getElementById('weaponSlots');
-    this.weaponSlot1 = document.getElementById('weaponSlot1');
-    this.weaponSlot2 = document.getElementById('weaponSlot2');
-    this.weaponSlot3 = document.getElementById('weaponSlot3');
+    this.weaponSlotElements = []; // Will store dynamic slot elements
     this.passiveSlots = document.getElementById('passiveSlots');
-    this.passiveSlot1 = document.getElementById('passiveSlot1');
-    this.passiveSlot2 = document.getElementById('passiveSlot2');
-    this.passiveSlot3 = document.getElementById('passiveSlot3');
+    this.passiveSlotElements = []; // Will store dynamic slot elements
+    
+    // Legendary status
+    this.legendaryStatus = document.getElementById('legendaryStatus');
     this.legendaryList = document.getElementById('legendaryList');
     
     // Dev mode elements
     this.devModeDiv = document.getElementById('devMode');
     this.devLevelUpBtn = document.getElementById('devLevelUp');
     this.devToggleBtn = document.getElementById('devToggle');
+    
+    // Keep-alive interval
+    this.keepAliveInterval = null;
+    
+    // Current player name for reconnection
+    this.currentPlayerName = '';
     
     this.init();
   }
@@ -256,10 +279,17 @@ class GameClient {
     });
     
     this.socket.on('levelUp', (data) => {
+      this.levelUpState.isLevelingUp = true;
+      this.levelUpState.startTime = data.startTime || Date.now();
+      this.levelUpState.timeout = data.timeout || 10000;
+      this.levelUpState.remainingTime = this.levelUpState.timeout;
+      
       this.showUpgradeModal(data.upgrades);
     });
     
     this.socket.on('upgradeSelected', (data) => {
+      this.levelUpState.isLevelingUp = false;
+      this.levelUpState.remainingTime = 0;
       this.hideUpgradeModal();
     });
     
@@ -281,6 +311,12 @@ class GameClient {
     
     this.socket.on('yourId', (id) => {
       this.gameState.myId = id;
+    });
+    
+    this.socket.on('gameConfig', (config) => {
+      this.gameConfig = config;
+      console.log('Received game config:', config);
+      this.setupDynamicSlots(); // Setup slots after config is received
     });
     
     this.socket.on('disconnect', (reason) => {
@@ -309,6 +345,30 @@ class GameClient {
     this.joinScreen.style.display = 'none';
   }
   
+  setupDynamicSlots() {
+    // Clear existing slots
+    this.weaponSlotElements.forEach(slot => slot.remove());
+    this.passiveSlotElements.forEach(slot => slot.remove());
+    this.weaponSlotElements = [];
+    this.passiveSlotElements = [];
+
+    // Create weapon slots
+    for (let i = 0; i < this.gameConfig.MAX_WEAPONS; i++) {
+      const slot = document.createElement('div');
+      slot.className = 'weapon-slot';
+      this.weaponSlots.appendChild(slot);
+      this.weaponSlotElements.push(slot);
+    }
+
+    // Create passive slots
+    for (let i = 0; i < this.gameConfig.MAX_PASSIVES; i++) {
+      const slot = document.createElement('div');
+      slot.className = 'passive-slot';
+      this.passiveSlots.appendChild(slot);
+      this.passiveSlotElements.push(slot);
+    }
+  }
+
   updateGameState(state) {
     // Update players
     this.gameState.players.clear();
@@ -407,25 +467,121 @@ class GameClient {
     return passiveNames[passiveId] || passiveId;
   }
   
+  getWeaponUpgradeBenefits(weaponId, level) {
+    const weapon = this.gameConfig.WEAPONS[weaponId];
+    if (!weapon || !weapon.perLevel) {
+      return 'Improved stats';
+    }
+    
+    const benefits = [];
+    const perLevel = weapon.perLevel;
+    
+    if (perLevel.cooldown !== undefined && perLevel.cooldown !== 0) {
+      const percentage = Math.round(Math.abs(perLevel.cooldown * 100));
+      benefits.push(perLevel.cooldown < 0 ? `-${percentage}% cooldown` : `+${percentage}% cooldown`);
+    }
+    
+    if (perLevel.damage !== undefined && perLevel.damage !== 0) {
+      const percentage = Math.round(Math.abs(perLevel.damage * 100));
+      benefits.push(perLevel.damage > 0 ? `+${percentage}% damage` : `-${percentage}% damage`);
+    }
+    
+    if (perLevel.speed !== undefined && perLevel.speed !== 0) {
+      const percentage = Math.round(Math.abs(perLevel.speed * 100));
+      benefits.push(perLevel.speed > 0 ? `+${percentage}% speed` : `-${percentage}% speed`);
+    }
+    
+    if (perLevel.radius !== undefined && perLevel.radius !== 0) {
+      const percentage = Math.round(Math.abs(perLevel.radius * 100));
+      benefits.push(perLevel.radius > 0 ? `+${percentage}% radius` : `-${percentage}% radius`);
+    }
+    
+    if (perLevel.sawCount !== undefined && perLevel.sawCount !== 0) {
+      benefits.push(`+${perLevel.sawCount} saw`);
+    }
+    
+    if (perLevel.orbCount !== undefined && perLevel.orbCount !== 0) {
+      benefits.push(`+${perLevel.orbCount} orb`);
+    }
+    
+    if (perLevel.mineCount !== undefined && perLevel.mineCount !== 0) {
+      benefits.push(`+${perLevel.mineCount} mine`);
+    }
+    
+    if (perLevel.daggerCount !== undefined && perLevel.daggerCount !== 0) {
+      benefits.push(`+${perLevel.daggerCount} dagger`);
+    }
+    
+    if (perLevel.duration !== undefined && perLevel.duration !== 0) {
+      const percentage = Math.round(Math.abs(perLevel.duration * 100));
+      benefits.push(perLevel.duration > 0 ? `+${percentage}% duration` : `-${percentage}% duration`);
+    }
+    
+    if (perLevel.spread !== undefined && perLevel.spread !== 0) {
+      const percentage = Math.round(Math.abs(perLevel.spread * 100));
+      benefits.push(perLevel.spread < 0 ? `-${percentage}% spread` : `+${percentage}% spread`);
+    }
+    
+    if (perLevel.turnRate !== undefined && perLevel.turnRate !== 0) {
+      const percentage = Math.round(Math.abs(perLevel.turnRate * 100));
+      benefits.push(perLevel.turnRate > 0 ? `+${percentage}% turn rate` : `-${percentage}% turn rate`);
+    }
+    
+    return benefits.length > 0 ? benefits.join(', ') : 'Improved stats';
+  }
+  
+  getPassiveUpgradeBenefits(passiveId, level) {
+    const passive = this.gameConfig.PASSIVES[passiveId];
+    if (!passive || passive.effect === undefined) {
+      return 'Improved effect';
+    }
+    
+    const effect = passive.effect;
+    const percentage = Math.round(Math.abs(effect * 100));
+    
+    if (passiveId === 'splitShot') {
+      return '+1 projectile (every 2 levels)';
+    }
+    
+    if (effect > 0) {
+      return `+${percentage}% ${this.getPassiveEffectDescription(passiveId)}`;
+    } else {
+      return `-${percentage}% ${this.getPassiveEffectDescription(passiveId)}`;
+    }
+  }
+  
+  getPassiveEffectDescription(passiveId) {
+    const descriptions = {
+      focusFire: 'projectile speed',
+      quickstep: 'movement speed',
+      biggerPayload: 'projectile size',
+      overclock: 'weapon cooldown',
+      hardenedLoad: 'damage'
+    };
+    
+    return descriptions[passiveId] || 'effect';
+  }
+  
   updateWeaponSlots(weapons) {
     const weaponArray = Object.entries(weapons);
-    this.weaponSlots.querySelector('h4').textContent = `Weapons (${weaponArray.length}/3)`;
+    this.weaponSlots.querySelector('h4').textContent = `Weapons (${weaponArray.length}/${this.gameConfig.MAX_WEAPONS})`;
     
     // Clear all slots
-    this.weaponSlot1.textContent = 'Empty';
-    this.weaponSlot1.className = 'weapon-slot';
-    this.weaponSlot2.textContent = 'Empty';
-    this.weaponSlot2.className = 'weapon-slot';
-    this.weaponSlot3.textContent = 'Empty';
-    this.weaponSlot3.className = 'weapon-slot';
+    this.weaponSlotElements.forEach(slot => slot.innerHTML = '<span class="slot-empty">Empty</span>');
+    this.weaponSlotElements.forEach(slot => slot.className = 'weapon-slot');
     
     // Fill slots with weapons
     weaponArray.forEach(([weaponId, level], index) => {
-      const slot = [this.weaponSlot1, this.weaponSlot2, this.weaponSlot3][index];
+      const slot = this.weaponSlotElements[index];
       if (slot) {
         // Use proper weapon names if available, fallback to ID
         const weaponName = this.getWeaponDisplayName(weaponId);
-        slot.textContent = `${weaponName} Lv.${level}`;
+        slot.innerHTML = `
+          <div class="slot-content">
+            <div class="slot-name">${weaponName}</div>
+            <div class="slot-level">Level ${level}/${this.gameConfig.MAX_WEAPON_LEVEL}</div>
+          </div>
+        `;
         slot.className = 'weapon-slot filled';
       }
     });
@@ -433,23 +589,24 @@ class GameClient {
   
   updatePassiveSlots(passives) {
     const passiveArray = Object.entries(passives);
-    this.passiveSlots.querySelector('h4').textContent = `Passives (${passiveArray.length}/3)`;
+    this.passiveSlots.querySelector('h4').textContent = `Passives (${passiveArray.length}/${this.gameConfig.MAX_PASSIVES})`;
     
     // Clear all slots
-    this.passiveSlot1.textContent = 'Empty';
-    this.passiveSlot1.className = 'passive-slot';
-    this.passiveSlot2.textContent = 'Empty';
-    this.passiveSlot2.className = 'passive-slot';
-    this.passiveSlot3.textContent = 'Empty';
-    this.passiveSlot3.className = 'passive-slot';
+    this.passiveSlotElements.forEach(slot => slot.innerHTML = '<span class="slot-empty">Empty</span>');
+    this.passiveSlotElements.forEach(slot => slot.className = 'passive-slot');
     
     // Fill slots with passives
     passiveArray.forEach(([passiveId, level], index) => {
-      const slot = [this.passiveSlot1, this.passiveSlot2, this.passiveSlot3][index];
+      const slot = this.passiveSlotElements[index];
       if (slot) {
         // Use proper passive names if available, fallback to ID
         const passiveName = this.getPassiveDisplayName(passiveId);
-        slot.textContent = `${passiveName} Lv.${level}`;
+        slot.innerHTML = `
+          <div class="slot-content">
+            <div class="slot-name">${passiveName}</div>
+            <div class="slot-level">Level ${level}/${this.gameConfig.MAX_PASSIVE_LEVEL}</div>
+          </div>
+        `;
         slot.className = 'passive-slot filled';
       }
     });
@@ -462,16 +619,28 @@ class GameClient {
       const legendaryDiv = document.createElement('div');
       legendaryDiv.className = 'legendary';
       const weaponName = this.getWeaponDisplayName(weaponId);
+      
       if (legendaryChosen[weaponId]) {
-        legendaryDiv.textContent = `${weaponName} - LEGENDARY ACTIVE!`;
+        legendaryDiv.innerHTML = `
+          <div class="legendary-active">
+            <span class="legendary-name">${weaponName}</span>
+            <span class="legendary-status">ACTIVE</span>
+          </div>
+        `;
       } else {
-        legendaryDiv.textContent = `${weaponName} - LEGENDARY UNLOCKED (Choose to activate)`;
+        legendaryDiv.innerHTML = `
+          <div class="legendary-unlocked">
+            <span class="legendary-name">${weaponName}</span>
+            <span class="legendary-status">UNLOCKED</span>
+          </div>
+        `;
       }
+      
       this.legendaryList.appendChild(legendaryDiv);
     });
     
     if (Object.keys(legendaryUnlocks).length === 0) {
-      this.legendaryList.textContent = 'No legendaries unlocked';
+      this.legendaryList.innerHTML = '<div class="no-legendaries">No legendaries unlocked</div>';
     }
   }
   
@@ -483,23 +652,87 @@ class GameClient {
       const option = document.createElement('div');
       option.className = 'upgrade-option';
       
+      // Create structured content instead of plain text
+      const titleDiv = document.createElement('div');
+      titleDiv.className = 'upgrade-title';
+      
+      const descriptionDiv = document.createElement('div');
+      descriptionDiv.className = 'upgrade-description';
+      
+      const statsDiv = document.createElement('div');
+      statsDiv.className = 'upgrade-stats';
+      
+      // Determine upgrade type and styling
+      let upgradeType = 'weapon';
+      let typeColor = '#FF6B6B';
+      
+      if (upgrade.type === 'passive' || upgrade.type === 'passive_level') {
+        upgradeType = 'passive';
+        typeColor = '#4ECDC4';
+      } else if (upgrade.type === 'legendary') {
+        upgradeType = 'legendary';
+        typeColor = '#FFD700';
+      }
+      
+      // Apply styling based on type
+      option.style.borderLeft = `4px solid ${typeColor}`;
+      option.className = `upgrade-option upgrade-${upgradeType}`;
+      
       // Special styling for legendary upgrades
       if (upgrade.type === 'legendary') {
-        option.style.color = '#FFD700';
-        option.style.fontWeight = 'bold';
+        option.style.background = 'linear-gradient(135deg, #2a2a2a, #444)';
         option.style.borderColor = '#FFD700';
-        option.style.background = '#444';
+        option.style.boxShadow = '0 0 10px rgba(255, 215, 0, 0.3)';
       }
       
-      let displayText = `${index + 1}. ${upgrade.name}`;
-      if (upgrade.description) {
-        displayText += ` - ${upgrade.description}`;
-      }
-      if (upgrade.type === 'weapon_level' || upgrade.type === 'passive_level') {
-        displayText += ` (Level ${upgrade.currentLevel + 1}/5)`;
+      // Build title with name
+      titleDiv.innerHTML = `<strong>${upgrade.name}</strong>`;
+      
+      // Build description - more specific about what gets upgraded
+      let description = '';
+      if (upgrade.type === 'weapon') {
+        description = upgrade.description;
+      } else if (upgrade.type === 'weapon_level') {
+        const upgradeBenefits = this.getWeaponUpgradeBenefits(upgrade.weaponId, upgrade.currentLevel + 1);
+        description = upgradeBenefits;
+      } else if (upgrade.type === 'passive') {
+        description = upgrade.description;
+      } else if (upgrade.type === 'passive_level') {
+        const upgradeBenefits = this.getPassiveUpgradeBenefits(upgrade.passiveId, upgrade.currentLevel + 1);
+        description = upgradeBenefits;
+      } else if (upgrade.type === 'legendary') {
+        const weapon = this.getWeaponDisplayName(upgrade.weaponId);
+        description = `Unlock legendary ${weapon} with enhanced abilities`;
       }
       
-      option.textContent = displayText;
+      descriptionDiv.textContent = description;
+      
+      // Build stats info
+      let stats = '';
+      if (upgrade.type === 'weapon') {
+        stats = 'NEW';
+      } else if (upgrade.type === 'passive') {
+        stats = 'NEW';
+      } else if (upgrade.type === 'weapon_level' || upgrade.type === 'passive_level') {
+        const maxLevel = upgrade.type === 'weapon_level' ? this.gameConfig.MAX_WEAPON_LEVEL : this.gameConfig.MAX_PASSIVE_LEVEL;
+        stats = `Level ${upgrade.currentLevel + 1}/${maxLevel}`;
+      } else if (upgrade.type === 'legendary') {
+        stats = 'LEGENDARY';
+      }
+      
+      if (stats) {
+        statsDiv.textContent = stats;
+        statsDiv.style.color = typeColor;
+        statsDiv.style.fontWeight = 'bold';
+      }
+      
+      // Assemble the option
+      option.appendChild(titleDiv);
+      option.appendChild(descriptionDiv);
+      if (stats) {
+        option.appendChild(statsDiv);
+      }
+      
       option.onclick = () => this.selectUpgrade(index);
       this.upgradeOptions.appendChild(option);
     });
@@ -509,6 +742,26 @@ class GameClient {
   
   hideUpgradeModal() {
     this.upgradeModal.style.display = 'none';
+  }
+  
+  updateLevelUpTimer() {
+    if (this.levelUpState.isLevelingUp) {
+      const elapsed = Date.now() - this.levelUpState.startTime;
+      this.levelUpState.remainingTime = Math.max(0, this.levelUpState.timeout - elapsed);
+      
+      // Update timer bar if it exists
+      const timerBar = document.getElementById('levelUpTimer');
+      if (timerBar) {
+        const progress = (this.levelUpState.remainingTime / this.levelUpState.timeout) * 100;
+        timerBar.style.width = `${progress}%`;
+      }
+      
+      // Auto-hide modal if time runs out (server will auto-select)
+      if (this.levelUpState.remainingTime <= 0) {
+        this.levelUpState.isLevelingUp = false;
+        this.hideUpgradeModal();
+      }
+    }
   }
   
 
@@ -521,6 +774,7 @@ class GameClient {
   
   startGameLoop() {
     const gameLoop = () => {
+      this.updateLevelUpTimer();
       this.render();
       requestAnimationFrame(gameLoop);
     };
@@ -670,32 +924,81 @@ class GameClient {
       const x = player.x - this.camera.x;
       const y = player.y - this.camera.y;
       
+      // Draw player body (rotated)
       this.ctx.save();
       this.ctx.translate(x, y);
       this.ctx.rotate(player.angle);
       
-      // Draw player body
-      this.ctx.drawImage(this.sprites.player, -16, -16, 32, 32);
-      
-      // Draw player name
-      this.ctx.fillStyle = '#fff';
-      this.ctx.font = '12px Arial';
-      this.ctx.textAlign = 'center';
-      this.ctx.fillText(player.name, 0, -25);
-      
-      // Draw health bar
-      const healthPercent = player.hp / player.maxHp;
-      const barWidth = 40;
-      const barHeight = 4;
-      
-      this.ctx.fillStyle = '#333';
-      this.ctx.fillRect(-barWidth/2, -30, barWidth, barHeight);
-      
-      this.ctx.fillStyle = healthPercent > 0.5 ? '#4CAF50' : healthPercent > 0.25 ? '#FF9800' : '#F44336';
-      this.ctx.fillRect(-barWidth/2, -30, barWidth * healthPercent, barHeight);
+      // Draw player body with different color if leveling up
+      if (player.isLevelingUp) {
+        // Create a pulsing effect for leveling up players
+        const pulseIntensity = Math.sin(Date.now() * 0.01) * 0.3 + 0.7;
+        this.ctx.globalAlpha = pulseIntensity;
+        this.ctx.fillStyle = '#FFD700'; // Gold color for leveling up
+        this.ctx.beginPath();
+        this.ctx.arc(0, 0, 20, 0, Math.PI * 2);
+        this.ctx.fill();
+        this.ctx.globalAlpha = 1;
+      } else {
+        // Normal player drawing
+        this.ctx.drawImage(this.sprites.player, -16, -16, 32, 32);
+      }
       
       this.ctx.restore();
+      
+      // Draw name and healthbar (not rotated - always upright)
+      this.drawPlayerUI(player, x, y);
     });
+  }
+  
+  drawPlayerUI(player, x, y) {
+    const nameY = y - 45; // Position above player
+    const healthbarY = y - 30; // Position below name
+    const healthbarWidth = 60;
+    const healthbarHeight = 6;
+    
+    // Draw player name
+    this.ctx.save();
+    this.ctx.textAlign = 'center';
+    this.ctx.font = '12px Arial';
+    this.ctx.fillStyle = '#FFFFFF';
+    
+    // Add shadow for better readability
+    this.ctx.shadowColor = '#000000';
+    this.ctx.shadowBlur = 2;
+    this.ctx.shadowOffsetX = 1;
+    this.ctx.shadowOffsetY = 1;
+    
+    this.ctx.fillText(player.name, x, nameY);
+    this.ctx.restore();
+    
+    // Draw healthbar background
+    this.ctx.save();
+    this.ctx.fillStyle = '#333333';
+    this.ctx.fillRect(x - healthbarWidth/2, healthbarY - healthbarHeight/2, healthbarWidth, healthbarHeight);
+    
+    // Draw healthbar fill
+    const healthPercent = player.hp / player.maxHp;
+    const fillWidth = healthbarWidth * healthPercent;
+    
+    // Color based on health percentage
+    let healthColor = '#00FF00'; // Green
+    if (healthPercent < 0.5) {
+      healthColor = '#FFFF00'; // Yellow
+    }
+    if (healthPercent < 0.25) {
+      healthColor = '#FF0000'; // Red
+    }
+    
+    this.ctx.fillStyle = healthColor;
+    this.ctx.fillRect(x - healthbarWidth/2, healthbarY - healthbarHeight/2, fillWidth, healthbarHeight);
+    
+    // Draw healthbar border
+    this.ctx.strokeStyle = '#FFFFFF';
+    this.ctx.lineWidth = 1;
+    this.ctx.strokeRect(x - healthbarWidth/2, healthbarY - healthbarHeight/2, healthbarWidth, healthbarHeight);
+    
+    this.ctx.restore();
   }
 }
 
