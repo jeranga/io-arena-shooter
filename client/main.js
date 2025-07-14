@@ -249,11 +249,38 @@ class GameClient {
       this.socket = null;
     }
     
-    // Create new connection
+    // Clear any existing keep-alive interval
+    if (this.keepAliveInterval) {
+      clearInterval(this.keepAliveInterval);
+      this.keepAliveInterval = null;
+    }
+    
+    // Reset game state
+    this.gameState.players.clear();
+    this.gameState.bullets.clear();
+    this.gameState.loot.clear();
+    this.gameState.myId = null;
+    this.gameState.myPlayer = null;
+    
+    // Show loading state
+    this.showConnectionStatus('Connecting...', 'connecting');
+    
+    // Set connection timeout
+    this.connectionTimeout = setTimeout(() => {
+      if (!this.socket.connected) {
+        this.showConnectionStatus('Connection timeout. Please try again.', 'error');
+      }
+    }, 15000); // 15 second timeout
+    
+    // Create new connection with better error handling
     this.socket = io({
       transports: ['polling', 'websocket'],
       timeout: 20000,
-      reconnection: false // Disable auto-reconnection for now
+      reconnection: true,
+      reconnectionAttempts: 5,
+      reconnectionDelay: 1000,
+      reconnectionDelayMax: 5000,
+      maxReconnectionAttempts: 5
     });
     
     this.setupSocketEvents();
@@ -262,6 +289,14 @@ class GameClient {
   setupSocketEvents() {
     this.socket.on('connect', () => {
       console.log('Connected to server');
+      this.hideConnectionStatus();
+      
+      // Clear connection timeout
+      if (this.connectionTimeout) {
+        clearTimeout(this.connectionTimeout);
+        this.connectionTimeout = null;
+      }
+      
       this.socket.emit('join', this.currentPlayerName);
     });
     
@@ -311,6 +346,15 @@ class GameClient {
     
     this.socket.on('yourId', (id) => {
       this.gameState.myId = id;
+      console.log('Received player ID:', id);
+      
+      // Set a timeout to check if player data is received
+      setTimeout(() => {
+        if (this.gameState.myId && !this.gameState.myPlayer) {
+          console.warn('Player ID received but player data not found in game state');
+          this.showConnectionStatus('Player data not received. Please refresh.', 'error');
+        }
+      }, 3000); // Check after 3 seconds
     });
     
     this.socket.on('gameConfig', (config) => {
@@ -321,18 +365,53 @@ class GameClient {
     
     this.socket.on('disconnect', (reason) => {
       console.log('Disconnected from server:', reason);
+      this.showConnectionStatus('Disconnected. Reconnecting...', 'disconnected');
+      
+      // Clear connection timeout
+      if (this.connectionTimeout) {
+        clearTimeout(this.connectionTimeout);
+        this.connectionTimeout = null;
+      }
+      
       // Clear keep-alive interval
       if (this.keepAliveInterval) {
         clearInterval(this.keepAliveInterval);
         this.keepAliveInterval = null;
       }
+      
+      // Reset game state on disconnect
+      this.gameState.players.clear();
+      this.gameState.bullets.clear();
+      this.gameState.loot.clear();
+      this.gameState.myId = null;
+      this.gameState.myPlayer = null;
     });
     
     this.socket.on('connect_error', (error) => {
       console.error('Connection error:', error);
+      this.showConnectionStatus('Connection failed. Retrying...', 'error');
+      
+      // Clear connection timeout
+      if (this.connectionTimeout) {
+        clearTimeout(this.connectionTimeout);
+        this.connectionTimeout = null;
+      }
     });
     
-    // Remove reconnect handler since reconnection is disabled
+    this.socket.on('reconnect', (attemptNumber) => {
+      console.log('Reconnected after', attemptNumber, 'attempts');
+      this.hideConnectionStatus();
+    });
+    
+    this.socket.on('reconnect_error', (error) => {
+      console.error('Reconnection error:', error);
+      this.showConnectionStatus('Reconnection failed. Please refresh.', 'error');
+    });
+    
+    this.socket.on('reconnect_failed', () => {
+      console.error('Reconnection failed after all attempts');
+      this.showConnectionStatus('Connection failed. Please refresh the page.', 'error');
+    });
     
     // Keep-alive ping to prevent server from stopping
     this.keepAliveInterval = setInterval(() => {
@@ -343,6 +422,70 @@ class GameClient {
     }, 30000); // Every 30 seconds
     
     this.joinScreen.style.display = 'none';
+  }
+  
+  showConnectionStatus(message, type = 'info') {
+    // Create or update connection status element
+    let statusElement = document.getElementById('connectionStatus');
+    if (!statusElement) {
+      statusElement = document.createElement('div');
+      statusElement.id = 'connectionStatus';
+      statusElement.style.cssText = `
+        position: fixed;
+        top: 20px;
+        left: 50%;
+        transform: translateX(-50%);
+        background: rgba(0, 0, 0, 0.8);
+        color: white;
+        padding: 10px 20px;
+        border-radius: 5px;
+        z-index: 1000;
+        font-family: Arial, sans-serif;
+        font-size: 14px;
+        text-align: center;
+      `;
+      document.body.appendChild(statusElement);
+    }
+    
+    // Set color based on type
+    const colors = {
+      connecting: '#FFA500',
+      disconnected: '#FFA500', 
+      error: '#FF4444',
+      info: '#FFFFFF'
+    };
+    
+    statusElement.style.color = colors[type] || colors.info;
+    
+    // Add retry button for error states
+    if (type === 'error') {
+      statusElement.innerHTML = `
+        ${message}
+        <br>
+        <button onclick="window.gameClient.retryConnection()" 
+                style="margin-top: 10px; padding: 5px 15px; background: #4CAF50; color: white; border: none; border-radius: 3px; cursor: pointer;">
+          Retry Connection
+        </button>
+      `;
+    } else {
+      statusElement.textContent = message;
+    }
+    
+    statusElement.style.display = 'block';
+  }
+  
+  hideConnectionStatus() {
+    const statusElement = document.getElementById('connectionStatus');
+    if (statusElement) {
+      statusElement.style.display = 'none';
+    }
+  }
+  
+  retryConnection() {
+    if (this.currentPlayerName) {
+      console.log('Retrying connection...');
+      this.joinGame(this.currentPlayerName);
+    }
   }
   
   setupDynamicSlots() {
@@ -1004,5 +1147,5 @@ class GameClient {
 
 // Start the game when the page loads
 document.addEventListener('DOMContentLoaded', () => {
-  new GameClient();
+  window.gameClient = new GameClient();
 }); 
