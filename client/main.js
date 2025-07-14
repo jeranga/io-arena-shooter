@@ -217,11 +217,23 @@ class GameClient {
   }
   
   joinGame(playerName) {
+    // Store player name for reconnection
+    this.currentPlayerName = playerName;
+    
+    // Disconnect any existing socket
+    if (this.socket) {
+      this.socket.disconnect();
+    }
+    
     this.socket = io({
       transports: ['polling', 'websocket'],
       upgrade: true,
       rememberUpgrade: true,
-      timeout: 20000
+      timeout: 20000,
+      forceNew: true,
+      reconnection: true,
+      reconnectionAttempts: 5,
+      reconnectionDelay: 1000
     });
     
     this.socket.on('connect', () => {
@@ -269,8 +281,22 @@ class GameClient {
       this.gameState.myId = id;
     });
     
-    this.socket.on('disconnect', () => {
-      // console.log('Disconnected from server');
+    this.socket.on('disconnect', (reason) => {
+      console.log('Disconnected from server:', reason);
+      if (reason === 'io server disconnect') {
+        // the disconnection was initiated by the server, reconnect manually
+        this.socket.connect();
+      }
+    });
+    
+    this.socket.on('connect_error', (error) => {
+      console.error('Connection error:', error);
+    });
+    
+    this.socket.on('reconnect', (attemptNumber) => {
+      console.log('Reconnected after', attemptNumber, 'attempts');
+      // Re-join the game after reconnection
+      this.socket.emit('join', this.currentPlayerName);
     });
     
     this.joinScreen.style.display = 'none';
