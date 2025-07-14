@@ -95,12 +95,12 @@ app.get('/health', (req, res) => {
   res.json(health);
 });
 
-// Serve static files from client directory
-app.use(express.static('client'));
+// Serve static files from dist directory (built client)
+app.use(express.static('dist'));
 
 // Serve index.html for all routes (SPA)
 app.get('*', (req, res) => {
-  res.sendFile('index.html', { root: 'client' });
+  res.sendFile('index.html', { root: 'dist' });
 });
 
 // Initialize game server
