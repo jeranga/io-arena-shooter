@@ -415,25 +415,22 @@ class GameClient {
       // Handle session ID errors specifically
       if (error.message && error.message.includes('Session ID unknown')) {
         this.sessionErrorCount++;
-        console.log(`Session ID error on initial connection (${this.sessionErrorCount}), retrying...`);
-        this.showConnectionStatus('Session error. Retrying...', 'error');
+        console.log(`Session ID error on initial connection (${this.sessionErrorCount})`);
         
-        // If too many session errors, force a complete reset
-        if (this.sessionErrorCount > 5) {
-          console.log('Too many session errors, forcing complete reset...');
-          this.sessionErrorCount = 0;
-          this.connectionAttempts = 0;
-          // Force a fresh connection with new client ID
+        // Only retry if we haven't connected yet and haven't exceeded retry limit
+        if (!this.socket.connected && this.sessionErrorCount <= 3) {
+          console.log('Retrying connection due to session error...');
+          this.showConnectionStatus('Session error. Retrying...', 'error');
+          
           setTimeout(() => {
-            this.socket.disconnect();
-            this.retryConnection();
+            if (!this.socket.connected) {
+              this.socket.disconnect();
+              this.retryConnection();
+            }
           }, 1000);
-        } else {
-          // Force a new connection attempt
-          setTimeout(() => {
-            this.socket.disconnect();
-            this.retryConnection();
-          }, 500);
+        } else if (this.sessionErrorCount > 3) {
+          console.log('Too many session errors, showing error message');
+          this.showConnectionStatus('Connection failed. Please refresh the page.', 'error');
         }
         return;
       }
@@ -455,25 +452,23 @@ class GameClient {
     this.socket.on('reconnect_error', (error) => {
       console.error('Reconnection error:', error);
       
-      // If it's a session ID error, force a fresh connection
+      // If it's a session ID error, handle it gracefully
       if (error.message && error.message.includes('Session ID unknown')) {
         this.sessionErrorCount++;
-        console.log(`Session ID error detected (${this.sessionErrorCount}), forcing fresh connection...`);
+        console.log(`Session ID error during reconnection (${this.sessionErrorCount})`);
         
-        // If too many session errors, force a complete reset
-        if (this.sessionErrorCount > 5) {
-          console.log('Too many session errors during reconnection, forcing complete reset...');
-          this.sessionErrorCount = 0;
-          this.connectionAttempts = 0;
+        // Only retry if we haven't exceeded retry limit
+        if (this.sessionErrorCount <= 3) {
+          console.log('Retrying reconnection due to session error...');
           setTimeout(() => {
-            this.socket.disconnect();
-            this.retryConnection();
+            if (!this.socket.connected) {
+              this.socket.disconnect();
+              this.retryConnection();
+            }
           }, 1000);
         } else {
-          setTimeout(() => {
-            this.socket.disconnect();
-            this.retryConnection();
-          }, 500); // Faster retry for session errors
+          console.log('Too many session errors during reconnection');
+          this.showConnectionStatus('Reconnection failed. Please refresh.', 'error');
         }
         return;
       }
