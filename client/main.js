@@ -279,7 +279,7 @@ class GameClient {
     
     // Create new connection with better error handling
     this.socket = io({
-      transports: ['polling', 'websocket'],
+      transports: ['websocket'],
       timeout: 20000,
       reconnection: true,
       reconnectionAttempts: 10, // Increased attempts

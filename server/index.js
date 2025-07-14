@@ -66,7 +66,7 @@ const io = new Server(httpServer, {
   },
   allowEIO3: true,
   allowEIO4: true,
-  transports: ['polling', 'websocket'],
+  transports: ['websocket'],
   pingTimeout: 60000,
   pingInterval: 25000,
   upgradeTimeout: 10000,
