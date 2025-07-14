@@ -65,30 +65,7 @@ const io = new Server(httpServer, {
   upgradeTimeout: 10000,
   maxHttpBufferSize: 1e6,
   allowRequest: (req, callback) => {
-    // Rate limiting and abuse protection
-    // Handle Fly.io proxy headers correctly
-    const clientIP = req.headers['x-forwarded-for']?.split(',')[0]?.trim() || 
-                    req.headers['x-real-ip'] || 
-                    req.connection.remoteAddress;
-    
-    // Skip rate limiting for Fly.io internal IPs
-    if (clientIP === '127.0.0.1' || clientIP === '::1' || clientIP.startsWith('10.') || clientIP.startsWith('172.') || clientIP.startsWith('192.168.')) {
-      return callback(null, true);
-    }
-    
-    // Check connection limits per IP
-    const ipData = connectionLimits.get(clientIP) || { count: 0, lastSeen: Date.now() };
-    if (ipData.count >= MAX_CONNECTIONS_PER_IP) {
-      console.log(`Rejecting connection from ${clientIP}: too many connections (${ipData.count}/${MAX_CONNECTIONS_PER_IP})`);
-      return callback(null, false);
-    }
-    
-    // Update connection count
-    ipData.count++;
-    ipData.lastSeen = Date.now();
-    connectionLimits.set(clientIP, ipData);
-    
-    console.log(`Connection from ${clientIP}: ${ipData.count}/${MAX_CONNECTIONS_PER_IP}`);
+    // Temporarily disable rate limiting to debug connection issues
     callback(null, true);
   }
 });

@@ -220,41 +220,25 @@ class GameClient {
     // Store player name for reconnection
     this.currentPlayerName = playerName;
     
-    // Prevent multiple simultaneous connection attempts
-    if (this.connecting) {
-      console.log('Already connecting, ignoring duplicate request');
-      return;
-    }
-    
-    this.connecting = true;
-    
     // Disconnect any existing socket
     if (this.socket) {
       this.socket.disconnect();
       this.socket = null;
     }
     
-    // Wait a moment for cleanup before creating new connection
-    setTimeout(() => {
-      this.socket = io({
-        transports: ['polling', 'websocket'],
-        upgrade: true,
-        rememberUpgrade: true,
-        timeout: 20000,
-        forceNew: false, // Changed to false to prevent multiple connections
-        reconnection: true,
-        reconnectionAttempts: 3,
-        reconnectionDelay: 2000
-      });
-      
-      this.setupSocketEvents();
-    }, 100);
+    // Create new connection
+    this.socket = io({
+      transports: ['polling', 'websocket'],
+      timeout: 20000,
+      reconnection: false // Disable auto-reconnection for now
+    });
+    
+    this.setupSocketEvents();
   }
   
   setupSocketEvents() {
     this.socket.on('connect', () => {
       console.log('Connected to server');
-      this.connecting = false;
       this.socket.emit('join', this.currentPlayerName);
     });
     
@@ -301,28 +285,18 @@ class GameClient {
     
     this.socket.on('disconnect', (reason) => {
       console.log('Disconnected from server:', reason);
-      this.connecting = false;
       // Clear keep-alive interval
       if (this.keepAliveInterval) {
         clearInterval(this.keepAliveInterval);
         this.keepAliveInterval = null;
       }
-      if (reason === 'io server disconnect') {
-        // the disconnection was initiated by the server, reconnect manually
-        this.socket.connect();
-      }
     });
     
     this.socket.on('connect_error', (error) => {
       console.error('Connection error:', error);
-      this.connecting = false;
     });
     
-    this.socket.on('reconnect', (attemptNumber) => {
-      console.log('Reconnected after', attemptNumber, 'attempts');
-      // Re-join the game after reconnection
-      this.socket.emit('join', this.currentPlayerName);
-    });
+    // Remove reconnect handler since reconnection is disabled
     
     // Keep-alive ping to prevent server from stopping
     this.keepAliveInterval = setInterval(() => {
