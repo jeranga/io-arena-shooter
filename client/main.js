@@ -93,6 +93,11 @@ class GameClient {
     // Current player name for reconnection
     this.currentPlayerName = '';
     
+    // Connection state tracking
+    this.connectionAttempts = 0;
+    this.maxConnectionAttempts = 15;
+    this.sessionErrorCount = 0;
+    
     this.init();
   }
   
@@ -277,15 +282,16 @@ class GameClient {
       transports: ['polling', 'websocket'],
       timeout: 20000,
       reconnection: true,
-      reconnectionAttempts: 5,
-      reconnectionDelay: 1000,
-      reconnectionDelayMax: 5000,
-      maxReconnectionAttempts: 5,
-      forceNew: true,
+      reconnectionAttempts: 10, // Increased attempts
+      reconnectionDelay: 500, // Faster initial delay
+      reconnectionDelayMax: 3000, // Shorter max delay
+      maxReconnectionAttempts: 10,
+      forceNew: true, // Always force new connection to avoid session conflicts
       withCredentials: false, // Disable credentials to match server
-      // Force new session on reconnection to avoid session ID conflicts
+      // Add unique identifier to avoid session conflicts
       auth: {
-        timestamp: Date.now()
+        timestamp: Date.now(),
+        clientId: Math.random().toString(36).substr(2, 9)
       }
     });
     
@@ -296,6 +302,10 @@ class GameClient {
     this.socket.on('connect', () => {
       console.log('Connected to server');
       this.hideConnectionStatus();
+      
+      // Reset error counters on successful connection
+      this.sessionErrorCount = 0;
+      this.connectionAttempts = 0;
       
       // Clear connection timeout
       if (this.connectionTimeout) {
@@ -401,6 +411,33 @@ class GameClient {
         context: error.context,
         message: error.message
       });
+      
+      // Handle session ID errors specifically
+      if (error.message && error.message.includes('Session ID unknown')) {
+        this.sessionErrorCount++;
+        console.log(`Session ID error on initial connection (${this.sessionErrorCount}), retrying...`);
+        this.showConnectionStatus('Session error. Retrying...', 'error');
+        
+        // If too many session errors, force a complete reset
+        if (this.sessionErrorCount > 5) {
+          console.log('Too many session errors, forcing complete reset...');
+          this.sessionErrorCount = 0;
+          this.connectionAttempts = 0;
+          // Force a fresh connection with new client ID
+          setTimeout(() => {
+            this.socket.disconnect();
+            this.retryConnection();
+          }, 1000);
+        } else {
+          // Force a new connection attempt
+          setTimeout(() => {
+            this.socket.disconnect();
+            this.retryConnection();
+          }, 500);
+        }
+        return;
+      }
+      
       this.showConnectionStatus('Connection failed. Retrying...', 'error');
       
       // Clear connection timeout
@@ -420,15 +457,29 @@ class GameClient {
       
       // If it's a session ID error, force a fresh connection
       if (error.message && error.message.includes('Session ID unknown')) {
-        console.log('Session ID error detected, forcing fresh connection...');
-        this.socket.disconnect();
-        setTimeout(() => {
-          this.retryConnection();
-        }, 1000);
+        this.sessionErrorCount++;
+        console.log(`Session ID error detected (${this.sessionErrorCount}), forcing fresh connection...`);
+        
+        // If too many session errors, force a complete reset
+        if (this.sessionErrorCount > 5) {
+          console.log('Too many session errors during reconnection, forcing complete reset...');
+          this.sessionErrorCount = 0;
+          this.connectionAttempts = 0;
+          setTimeout(() => {
+            this.socket.disconnect();
+            this.retryConnection();
+          }, 1000);
+        } else {
+          setTimeout(() => {
+            this.socket.disconnect();
+            this.retryConnection();
+          }, 500); // Faster retry for session errors
+        }
         return;
       }
       
-      this.showConnectionStatus('Reconnection failed. Please refresh.', 'error');
+      // For other errors, show status but don't give up immediately
+      this.showConnectionStatus('Reconnection failed. Retrying...', 'error');
     });
     
     this.socket.on('reconnect_failed', () => {
@@ -506,7 +557,15 @@ class GameClient {
   
   retryConnection() {
     if (this.currentPlayerName) {
-      console.log('Retrying connection...');
+      this.connectionAttempts++;
+      console.log(`Retrying connection (attempt ${this.connectionAttempts}/${this.maxConnectionAttempts})...`);
+      
+      // Check if we've exceeded max attempts
+      if (this.connectionAttempts > this.maxConnectionAttempts) {
+        console.error('Max connection attempts exceeded');
+        this.showConnectionStatus('Connection failed. Please refresh the page.', 'error');
+        return;
+      }
       
       // Force disconnect any existing socket
       if (this.socket) {

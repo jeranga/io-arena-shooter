@@ -121,7 +121,14 @@ io.engine.on('connection_error', (err) => {
   // Log session ID errors specifically
   if (err.message === 'Session ID unknown') {
     console.log(`Session ID unknown for: ${err.context?.sid}`);
+    // For session ID errors, we'll let the client handle reconnection
+    // This is expected in multi-instance deployments
+    // Don't log this as an error since it's expected behavior
+    return;
   }
+  
+  // For other errors, log them as actual errors
+  console.error('Unexpected Socket.IO error:', err);
 });
 
 // Note: Session cleanup removed to avoid server errors
