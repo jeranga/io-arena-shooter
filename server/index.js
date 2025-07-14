@@ -72,7 +72,11 @@ const io = new Server(httpServer, {
   upgradeTimeout: 10000,
   maxHttpBufferSize: 1e6,
   connectTimeout: 45000,
-  // Remove allowRequest to use default Socket.IO request handling
+  // Add error handling
+  allowRequest: (req, callback) => {
+    console.log(`Socket.IO allowRequest: ${req.method} ${req.url}`);
+    callback(null, true);
+  }
 });
 
 // Health check endpoint (must come before catch-all route)
@@ -104,12 +108,29 @@ const gameServer = new GameServer(io, GAME_CONFIG);
 
 // Add Socket.IO debugging
 io.engine.on('connection_error', (err) => {
-  console.error('Socket.IO connection error:', err);
+  console.error('Socket.IO connection error:', {
+    type: err.type,
+    message: err.message,
+    description: err.description,
+    context: err.context,
+    code: err.code,
+    url: err.req?.url,
+    method: err.req?.method
+  });
 });
 
 // Socket.IO connection handling
 io.on('connection', (socket) => {
   console.log(`New connection: ${socket.id}`);
+  
+  // Add connection debugging
+  socket.on('error', (error) => {
+    console.error(`Socket error for ${socket.id}:`, error);
+  });
+  
+  socket.on('disconnect', (reason) => {
+    console.log(`Socket ${socket.id} disconnected: ${reason}`);
+  });
   
   // Track message rate for this socket
   const socketId = socket.id;
