@@ -220,24 +220,42 @@ class GameClient {
     // Store player name for reconnection
     this.currentPlayerName = playerName;
     
+    // Prevent multiple simultaneous connection attempts
+    if (this.connecting) {
+      console.log('Already connecting, ignoring duplicate request');
+      return;
+    }
+    
+    this.connecting = true;
+    
     // Disconnect any existing socket
     if (this.socket) {
       this.socket.disconnect();
+      this.socket = null;
     }
     
-    this.socket = io({
-      transports: ['polling', 'websocket'],
-      upgrade: true,
-      rememberUpgrade: true,
-      timeout: 20000,
-      forceNew: true,
-      reconnection: true,
-      reconnectionAttempts: 5,
-      reconnectionDelay: 1000
-    });
-    
+    // Wait a moment for cleanup before creating new connection
+    setTimeout(() => {
+      this.socket = io({
+        transports: ['polling', 'websocket'],
+        upgrade: true,
+        rememberUpgrade: true,
+        timeout: 20000,
+        forceNew: false, // Changed to false to prevent multiple connections
+        reconnection: true,
+        reconnectionAttempts: 3,
+        reconnectionDelay: 2000
+      });
+      
+      this.setupSocketEvents();
+    }, 100);
+  }
+  
+  setupSocketEvents() {
     this.socket.on('connect', () => {
-      this.socket.emit('join', playerName);
+      console.log('Connected to server');
+      this.connecting = false;
+      this.socket.emit('join', this.currentPlayerName);
     });
     
     this.socket.on('gameState', (state) => {
@@ -283,6 +301,7 @@ class GameClient {
     
     this.socket.on('disconnect', (reason) => {
       console.log('Disconnected from server:', reason);
+      this.connecting = false;
       // Clear keep-alive interval
       if (this.keepAliveInterval) {
         clearInterval(this.keepAliveInterval);
@@ -296,6 +315,7 @@ class GameClient {
     
     this.socket.on('connect_error', (error) => {
       console.error('Connection error:', error);
+      this.connecting = false;
     });
     
     this.socket.on('reconnect', (attemptNumber) => {
