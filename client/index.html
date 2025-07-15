@@ -75,7 +75,7 @@
         }
         
         #healthBar {
-            top: 20px;
+            top: 200px;
             left: 20px;
             width: 200px;
         }
@@ -106,7 +106,7 @@
         }
         
         #legendaryStatus {
-            top: 400px;
+            top: 480px;
             right: 20px;
             min-width: 200px;
         }
@@ -368,6 +368,83 @@
         #devMode button:hover {
             background: #cc3333;
         }
+        
+        #leaderboard {
+            top: 20px;
+            left: 20px;
+            min-width: 250px;
+            max-width: 300px;
+        }
+        
+        #leaderboard h4 {
+            margin: 0 0 10px 0;
+            color: #FFD700;
+            font-size: 16px;
+            text-align: center;
+        }
+        
+        .leaderboard-entry {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 5px 8px;
+            margin: 2px 0;
+            border-radius: 3px;
+            background: #2a2a2a;
+            border: 1px solid #444;
+            font-size: 13px;
+        }
+        
+        .leaderboard-entry.self {
+            background: #1a3a1a;
+            border-color: #4CAF50;
+        }
+        
+        .leaderboard-rank {
+            font-weight: bold;
+            color: #FFD700;
+            width: 20px;
+            text-align: center;
+        }
+        
+        .leaderboard-name {
+            flex: 1;
+            text-align: left;
+            margin-left: 10px;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+        
+        .leaderboard-level {
+            font-weight: bold;
+            color: #4CAF50;
+            margin-left: 10px;
+        }
+        
+        #onlineCount {
+            position: absolute;
+            top: 280px;
+            left: 20px;
+            min-width: 150px;
+            background: rgba(0, 0, 0, 0.7);
+            padding: 10px;
+            border-radius: 5px;
+            border: 1px solid #333;
+            text-align: center;
+        }
+        
+        #onlineCount h4 {
+            margin: 0 0 5px 0;
+            color: #4ECDC4;
+            font-size: 14px;
+        }
+        
+        #onlineCount .count {
+            font-size: 18px;
+            font-weight: bold;
+            color: #4ECDC4;
+        }
     </style>
 </head>
 <body>
@@ -384,6 +461,16 @@
             <div id="healthBar" class="hud-element">
                 <div>Health</div>
                 <div id="healthFill"></div>
+            </div>
+            
+            <div id="leaderboard" class="hud-element">
+                <h4>🏆 Top Players</h4>
+                <div id="leaderboardList"></div>
+            </div>
+            
+            <div id="onlineCount" class="hud-element">
+                <h4>Online Players</h4>
+                <div class="count" id="onlineCountValue">0</div>
             </div>
             
             <div id="stats" class="hud-element">

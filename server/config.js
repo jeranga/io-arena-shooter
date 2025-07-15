@@ -16,6 +16,10 @@ const GAME_CONFIG = {
     level: 1
   },
   
+  // Health system settings
+  HEALTH_REGENERATION_PER_SECOND: 2, // HP regenerated per second
+  HEALTH_BOOST_PER_LEVEL: 15, // Max HP gained per level up
+  
   // Player collision and visual settings
   PLAYER_RADIUS: 20, // Player collision radius
   PLAYER_SPRITE_SIZE: 32, // Player sprite size in pixels
@@ -56,7 +60,7 @@ const GAME_CONFIG = {
     marksman: {
       id: 'marksman',
       name: 'Marksman Shots',
-      description: 'Single high-speed bullet toward cursor',
+      get description() { return 'Single high-speed bullet toward cursor'; },
       baseCooldown: 750, // 0.75s in milliseconds
       baseDamage: 25,
       baseSpeed: 400,
@@ -76,7 +80,7 @@ const GAME_CONFIG = {
     saws: {
       id: 'saws',
       name: 'Whirling Saws',
-      description: '2 rotating blades orbit player for 2 seconds',
+      get description() { return `${this.baseSawCount} rotating blade${this.baseSawCount > 1 ? 's' : ''} orbit player for ${this.baseDuration/1000} seconds`; },
       baseCooldown: 3000, // 3s in milliseconds
       baseDamage: 20,
       baseSpeed: 200, // Orbit speed in pixels per second
@@ -103,7 +107,7 @@ const GAME_CONFIG = {
     burst: {
       id: 'burst',
       name: 'Burst Orbs',
-      description: '5 short-range orbs burst around cursor',
+      get description() { return `${this.baseOrbCount} short-range orb${this.baseOrbCount > 1 ? 's' : ''} burst around cursor`; },
       baseCooldown: 1200, // 1.2s in milliseconds
       baseDamage: 25,
       baseSpeed: 300,
@@ -127,7 +131,7 @@ const GAME_CONFIG = {
     chain: {
       id: 'chain',
       name: 'Splat Gun',
-      description: '5 short-range orbs burst toward cursor with random spread',
+      get description() { return `${this.baseOrbCount} short-range orb${this.baseOrbCount > 1 ? 's' : ''} burst toward cursor with random spread`; },
       baseCooldown: 1200, // 1.2s in milliseconds
       baseDamage: 25,
       baseSpeed: 300,
@@ -152,7 +156,7 @@ const GAME_CONFIG = {
     mines: {
       id: 'mines',
       name: 'Scatter Mines',
-      description: '1 lobbed mine that arms on landing and explodes on contact',
+      get description() { return `${this.baseMineCount} lobbed mine${this.baseMineCount > 1 ? 's' : ''} that arm${this.baseMineCount === 1 ? 's' : ''} on landing and explode${this.baseMineCount === 1 ? 's' : ''} on contact`; },
       baseCooldown: 2500, // 2.5s in milliseconds
       baseDamage: 30,
       baseSpeed: 200, // Initial lob speed
@@ -177,7 +181,7 @@ const GAME_CONFIG = {
     daggers: {
       id: 'daggers',
       name: 'Homing Daggers',
-      description: '2 daggers with slow homing toward nearest enemy',
+      get description() { return `${this.baseDaggerCount} dagger${this.baseDaggerCount > 1 ? 's' : ''} with slow homing toward nearest enemy`; },
       baseCooldown: 800, // 0.8s in milliseconds
       baseDamage: 20,
       baseSpeed: 250,

@@ -72,6 +72,10 @@ class GameClient {
     this.upgradeModal = document.getElementById('upgradeModal');
     this.upgradeOptions = document.getElementById('upgradeOptions');
     
+    // Leaderboard and online count elements
+    this.leaderboardList = document.getElementById('leaderboardList');
+    this.onlineCountValue = document.getElementById('onlineCountValue');
+    
     // Weapon system elements - will be populated dynamically
     this.weaponSlots = document.getElementById('weaponSlots');
     this.weaponSlotElements = []; // Will store dynamic slot elements
@@ -396,6 +400,14 @@ class GameClient {
       this.gameState.loot.set(loot.id, loot);
     });
     
+    // Update leaderboard and online count
+    if (state.leaderboard) {
+      this.updateLeaderboard(state.leaderboard);
+    }
+    if (state.onlineCount !== undefined) {
+      this.updateOnlineCount(state.onlineCount);
+    }
+    
     // Send input to server
     if (this.socket && this.socket.connected) {
       this.socket.emit('input', this.input);
@@ -642,6 +654,37 @@ class GameClient {
     if (Object.keys(legendaryUnlocks).length === 0) {
       this.legendaryList.innerHTML = '<div class="no-legendaries">No legendaries unlocked</div>';
     }
+  }
+  
+  updateLeaderboard(leaderboard) {
+    this.leaderboardList.innerHTML = '';
+    
+    if (leaderboard.length === 0) {
+      this.leaderboardList.innerHTML = '<div class="leaderboard-entry">No players online</div>';
+      return;
+    }
+    
+    leaderboard.forEach((player, index) => {
+      const entry = document.createElement('div');
+      entry.className = 'leaderboard-entry';
+      
+      // Highlight current player
+      if (this.gameState.myPlayer && player.name === this.gameState.myPlayer.name) {
+        entry.classList.add('self');
+      }
+      
+      entry.innerHTML = `
+        <div class="leaderboard-rank">${index + 1}</div>
+        <div class="leaderboard-name">${player.name}</div>
+        <div class="leaderboard-level">L${player.level}</div>
+      `;
+      
+      this.leaderboardList.appendChild(entry);
+    });
+  }
+  
+  updateOnlineCount(count) {
+    this.onlineCountValue.textContent = count;
   }
   
   showUpgradeModal(upgrades) {

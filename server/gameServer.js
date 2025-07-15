@@ -378,6 +378,11 @@ class GameServer {
   
   updatePlayers() {
     for (const [socketId, player] of this.players) {
+      // Health regeneration: configurable HP per second
+      if (player.hp < player.maxHp && !player.isLevelingUp) {
+        player.hp = Math.min(player.maxHp, player.hp + (this.config.HEALTH_REGENERATION_PER_SECOND / this.config.TICK_RATE));
+      }
+      
       // Skip movement if player is leveling up
       if (player.isLevelingUp) {
         // Still allow aiming but not movement
@@ -917,6 +922,10 @@ class GameServer {
       player.level++;
       player.xp = player.xp - nextLevelXp; // Keep remainder XP
       
+      // Increase max health and fully heal player on level up
+      player.maxHp += this.config.HEALTH_BOOST_PER_LEVEL;
+      player.hp = player.maxHp;
+      
       // Check for legendary unlocks
       this.checkForLegendaryUnlocks(player);
       
@@ -1166,10 +1175,31 @@ class GameServer {
         x: l.x,
         y: l.y,
         value: l.value
-      }))
+      })),
+      leaderboard: this.getLeaderboard(),
+      onlineCount: this.players.size
     };
     
     this.io.emit('gameState', snapshot);
+  }
+  
+  getLeaderboard() {
+    // Get top 5 players by level, then by XP if tied
+    return Array.from(this.players.values())
+      .sort((a, b) => {
+        // Sort by level first (descending)
+        if (a.level !== b.level) {
+          return b.level - a.level;
+        }
+        // If levels are equal, sort by XP (descending)
+        return b.xp - a.xp;
+      })
+      .slice(0, 5)
+      .map(p => ({
+        name: p.name,
+        level: p.level,
+        xp: p.xp
+      }));
   }
   
   destroy() {
