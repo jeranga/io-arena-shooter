@@ -260,8 +260,9 @@ class GameServer {
         mineCount += extraProjectiles;
       } else if (weaponId === 'daggers') {
         daggerCount += extraProjectiles;
+      } else if (weaponId === 'saws') {
+        sawCount += extraProjectiles;
       }
-      // saws don't get extra projectiles from splitShot
     }
     
     // Apply legendary bonuses if unlocked and chosen
@@ -506,6 +507,8 @@ class GameServer {
         // Cooldown expired, switch to active
         player.sawsState.isActive = true;
         player.sawsState.lastStateChange = now;
+        player.sawsState.currentDuration = duration;
+        player.sawsState.currentCooldown = cooldown;
         this.fireWeapon(player, weaponId); // Create new saws
       }
     }

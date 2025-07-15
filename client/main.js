@@ -1050,41 +1050,4 @@ document.addEventListener('DOMContentLoaded', () => {
   new GameClient();
 });
 
-// Suggestions box functionality
-function copySuggestion() {
-  const textarea = document.getElementById('suggestionsTextarea');
-  const button = document.getElementById('suggestionsSendBtn');
-  
-  if (textarea.value.trim() === '') {
-    alert('Please enter your suggestion first!');
-    return;
-  }
-  
-  // Copy to clipboard
-  navigator.clipboard.writeText(textarea.value).then(() => {
-    // Success feedback
-    const originalText = button.innerHTML;
-    button.innerHTML = '✅ Copied!';
-    button.disabled = true;
-    
-    setTimeout(() => {
-      button.innerHTML = originalText;
-      button.disabled = false;
-      textarea.value = ''; // Clear the textarea
-    }, 2000);
-  }).catch(() => {
-    // Fallback for older browsers
-    textarea.select();
-    document.execCommand('copy');
-    
-    const originalText = button.innerHTML;
-    button.innerHTML = '✅ Copied!';
-    button.disabled = true;
-    
-    setTimeout(() => {
-      button.innerHTML = originalText;
-      button.disabled = false;
-      textarea.value = ''; // Clear the textarea
-    }, 2000);
-  });
-} 
+ 

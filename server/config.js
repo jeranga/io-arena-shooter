@@ -81,14 +81,14 @@ const GAME_CONFIG = {
       id: 'saws',
       name: 'Whirling Saws',
       get description() { return `${this.baseSawCount} rotating blade${this.baseSawCount > 1 ? 's' : ''} orbit player for ${this.baseDuration/1000} seconds`; },
-      baseCooldown: 3000, // 3s in milliseconds
+      baseCooldown: 2000, // 3s in milliseconds
       baseDamage: 20,
       baseSpeed: 200, // Orbit speed in pixels per second
       baseRadius: 8,
       baseSawCount: 1, // Number of saws
       baseDuration: 2000, // 2 seconds duration
       perLevel: {
-        cooldown: -0.08, // -8% cooldown per level (from design doc)
+        cooldown: -0.1, // -8% cooldown per level (from design doc)
         damage: 0, // No damage increase
         speed: 0.07, // +7% orbit speed per level
         radius: 0, // No radius increase

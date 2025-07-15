@@ -16,6 +16,14 @@ echo "🚀 Starting deployment process..."
 echo "📝 Commit message: $COMMIT_MESSAGE"
 echo ""
 
+echo "Building client..."
+npm run build
+if [ $? -ne 0 ]; then
+    echo "❌ Failed to build client"
+    exit 1
+fi
+echo "✅ Client built successfully"
+
 # Step 1: Git add
 echo "📁 Adding all files to git..."
 git add .
