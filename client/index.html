@@ -311,6 +311,75 @@
             padding: 30px;
             border-radius: 10px;
             border: 1px solid #666;
+            margin-bottom: 20px;
+        }
+        
+        #suggestionsBox {
+            background: #2a2a2a;
+            padding: 20px;
+            border-radius: 10px;
+            border: 1px solid #555;
+            max-width: 400px;
+            text-align: center;
+        }
+        
+        #suggestionsBox h3 {
+            color: #4ECDC4;
+            margin-bottom: 15px;
+            font-size: 18px;
+        }
+        
+        #suggestionsBox p {
+            color: #ccc;
+            margin-bottom: 15px;
+            line-height: 1.4;
+        }
+        
+        #suggestionsBox .twitter-link {
+            color: #1DA1F2;
+            text-decoration: none;
+            font-weight: bold;
+        }
+        
+        #suggestionsBox .twitter-link:hover {
+            text-decoration: underline;
+        }
+        
+        #suggestionsTextarea {
+            width: 100%;
+            height: 80px;
+            padding: 10px;
+            border: 1px solid #666;
+            border-radius: 5px;
+            background: #1a1a1a;
+            color: #fff;
+            resize: vertical;
+            font-family: Arial, sans-serif;
+            margin-bottom: 10px;
+        }
+        
+        #suggestionsTextarea::placeholder {
+            color: #888;
+        }
+        
+        #suggestionsSendBtn {
+            background: #4ECDC4;
+            color: #000;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-weight: bold;
+            margin-right: 10px;
+        }
+        
+        #suggestionsSendBtn:hover {
+            background: #45b7b8;
+        }
+        
+        #suggestionsSendBtn:disabled {
+            background: #666;
+            cursor: not-allowed;
         }
         
         #playerName {
@@ -506,6 +575,16 @@
                 <input type="text" id="playerName" placeholder="Enter your name" maxlength="20">
                 <br>
                 <button id="joinButton">Join Game</button>
+            </div>
+            
+            <div id="suggestionsBox">
+                <h3>💡 Suggestions & Feedback</h3>
+                <p>Have ideas to improve the game? Found a bug? Let me know!</p>
+                <p>Reach out on Twitter: <a href="https://twitter.com/jerangutan" target="_blank" class="twitter-link">@jerangutan</a></p>
+                <textarea id="suggestionsTextarea" placeholder="Share your thoughts, ideas, or bug reports..."></textarea>
+                <br>
+                <button id="suggestionsSendBtn" onclick="copySuggestion()">📋 Copy to Clipboard</button>
+                <small style="color: #888;">Copy and send via Twitter DM or tweet!</small>
             </div>
         </div>
         
