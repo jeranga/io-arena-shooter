@@ -86,8 +86,8 @@ app.get('/health', (req, res) => {
   res.json(health);
 });
 
-// Serve static files from client directory
-app.use(express.static('client'));
+// Serve static files from client/dist directory (built files)
+app.use(express.static('client/dist'));
 
 // Serve index.html for all routes (SPA)
 app.get('*', (req, res) => {

@@ -20,5 +20,5 @@ RUN npm prune --production
 # Expose port
 EXPOSE 8080
 
-# Start the application
-CMD ["npm", "start"] 
+# Start the application (build already done above)
+CMD ["node", "server/index.js"] 
