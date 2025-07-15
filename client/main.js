@@ -439,7 +439,7 @@ class GameClient {
   getXpForLevel(level) {
     // Same formula as server: base * (scaling ^ (level - 1))
     const base = 100;
-    const scaling = 1.5;
+    const scaling = 1.3;
     return Math.floor(base * Math.pow(scaling, level - 1));
   }
   

@@ -873,10 +873,9 @@ class GameServer {
   }
   
   handlePlayerDeath(player) {
-    const originalXp = player.xp;
     const originalX = player.x;
     const originalY = player.y;
-    const lootValue = Math.floor(originalXp * this.config.LOOT_DROP_RATIO);
+    const lootValue = player.level * 100;
     if (lootValue > 0) {
       const lootItem = {
         id: uuidv4(),

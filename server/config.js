@@ -30,7 +30,7 @@ const GAME_CONFIG = {
   
   // Weapon-specific settings
   BURST_SPAWN_RADIUS: 30, // Distance from player center for burst orbs
-  SAW_ORBIT_RADIUS: 50, // Distance from player for orbiting saws
+  SAW_ORBIT_RADIUS: 100, // Distance from player for orbiting saws
   
   // Upgrade system settings
   MAX_WEAPONS: 2, // Maximum number of weapons a player can have
@@ -49,7 +49,7 @@ const GAME_CONFIG = {
   
   // XP progression - infinite curve
   XP_BASE: 100, // Base XP for level 1
-  XP_SCALING: 1.2, // Multiplier for each level
+  XP_SCALING: 1.3, // Multiplier for each level
   
   // Weapon System - Aggressive Upgrades (Weapons)
   WEAPONS: {
