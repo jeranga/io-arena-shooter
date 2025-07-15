@@ -43,13 +43,13 @@ const GAME_CONFIG = {
   // Loot settings
   LOOT_TIMEOUT: 60000, // 60 seconds in milliseconds
   LOOT_SPAWN_RATE: 0.02, // probability per tick (reduced from 0.1)
-  LOOT_VALUE_RANGE: [10, 50],
+  LOOT_VALUE_RANGE: [100, 150],
   MAX_LOOT_COUNT: 20, // maximum number of loot items in the arena
   LOOT_DROP_RATIO: 0.5, // Fraction of XP dropped as loot on death
   
   // XP progression - infinite curve
   XP_BASE: 100, // Base XP for level 1
-  XP_SCALING: 1.5, // Multiplier for each level
+  XP_SCALING: 1.2, // Multiplier for each level
   
   // Weapon System - Aggressive Upgrades (Weapons)
   WEAPONS: {
