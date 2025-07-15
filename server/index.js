@@ -20,12 +20,6 @@ app.use((req, res, next) => {
   res.setHeader('X-Frame-Options', 'DENY');
   res.setHeader('X-XSS-Protection', '1; mode=block');
   res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
-  
-  // Log Socket.IO requests for debugging
-  if (req.url && req.url.includes('/socket.io/')) {
-    console.log(`Socket.IO request: ${req.method} ${req.url} from ${req.ip}`);
-  }
-  
   next();
 });
 
@@ -59,22 +53,19 @@ setInterval(() => {
 
 const io = new Server(httpServer, {
   cors: {
-    origin: "*", // Allow all origins for now to debug
+    origin: process.env.NODE_ENV === 'production' ? true : ["http://localhost:3001", "http://localhost:5173"],
     methods: ["GET", "POST", "OPTIONS"],
-    credentials: false, // Disable credentials to avoid CORS issues
+    credentials: true,
     allowedHeaders: ["Content-Type", "Authorization"]
   },
   allowEIO3: true,
-  allowEIO4: true,
-  transports: ['websocket'],
+  transports: ['polling', 'websocket'],
   pingTimeout: 60000,
   pingInterval: 25000,
   upgradeTimeout: 10000,
   maxHttpBufferSize: 1e6,
-  connectTimeout: 45000,
-  // Add error handling
   allowRequest: (req, callback) => {
-    console.log(`Socket.IO allowRequest: ${req.method} ${req.url}`);
+    // Temporarily disable rate limiting to debug connection issues
     callback(null, true);
   }
 });
@@ -95,57 +86,20 @@ app.get('/health', (req, res) => {
   res.json(health);
 });
 
-// Serve static files from dist directory (built client)
-app.use(express.static('dist'));
+// Serve static files from client directory
+app.use(express.static('client'));
 
 // Serve index.html for all routes (SPA)
 app.get('*', (req, res) => {
-  res.sendFile('index.html', { root: 'dist' });
+  res.sendFile('index.html', { root: 'client' });
 });
 
 // Initialize game server
 const gameServer = new GameServer(io, GAME_CONFIG);
 
-// Add Socket.IO debugging
-io.engine.on('connection_error', (err) => {
-  console.error('Socket.IO connection error:', {
-    type: err.type,
-    message: err.message,
-    description: err.description,
-    context: err.context,
-    code: err.code,
-    url: err.req?.url,
-    method: err.req?.method
-  });
-  
-  // Log session ID errors specifically
-  if (err.message === 'Session ID unknown') {
-    console.log(`Session ID unknown for: ${err.context?.sid}`);
-    // For session ID errors, we'll let the client handle reconnection
-    // This is expected in multi-instance deployments
-    // Don't log this as an error since it's expected behavior
-    return;
-  }
-  
-  // For other errors, log them as actual errors
-  console.error('Unexpected Socket.IO error:', err);
-});
-
-// Note: Session cleanup removed to avoid server errors
-// Client-side reconnection logic should handle session ID issues
-
 // Socket.IO connection handling
 io.on('connection', (socket) => {
   console.log(`New connection: ${socket.id}`);
-  
-  // Add connection debugging
-  socket.on('error', (error) => {
-    console.error(`Socket error for ${socket.id}:`, error);
-  });
-  
-  socket.on('disconnect', (reason) => {
-    console.log(`Socket ${socket.id} disconnected: ${reason}`);
-  });
   
   // Track message rate for this socket
   const socketId = socket.id;
@@ -324,7 +278,7 @@ io.on('connection', (socket) => {
   });
 });
 
-const PORT = process.env.PORT || 8080;
+const PORT = process.env.PORT || 3000;
 const HOST = '0.0.0.0';
 httpServer.listen(PORT, HOST, () => {
   console.log(`Server running on ${HOST}:${PORT}`);
