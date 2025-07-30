@@ -31,6 +31,10 @@ const MAX_JOIN_ATTEMPTS_PER_MINUTE = 20; // Increased for shared networks
 const messageCounts = new Map();
 const joinAttempts = new Map();
 
+// Connection quality tracking for cross-region optimization
+const connectionQuality = new Map(); // socketId -> { latency, packetLoss, region }
+const ADAPTIVE_RATE_LIMITING = true; // Enable adaptive rate limiting based on connection quality
+
 // Clean up old rate limit data every minute
 setInterval(() => {
   const now = Date.now();
@@ -59,9 +63,9 @@ const io = new Server(httpServer, {
     allowedHeaders: ["Content-Type", "Authorization"]
   },
   allowEIO3: true,
-  transports: ['polling', 'websocket'],
-  pingTimeout: 60000,
-  pingInterval: 25000,
+  transports: ['websocket', 'polling'], // Prioritize WebSocket for better performance
+  pingTimeout: 45000, // Reduced from 60000 for faster reconnection
+  pingInterval: 20000, // Reduced from 25000 for more responsive connection monitoring
   upgradeTimeout: 10000,
   maxHttpBufferSize: 1e6,
   allowRequest: (req, callback) => {
@@ -104,6 +108,30 @@ io.on('connection', (socket) => {
   // Track message rate for this socket
   const socketId = socket.id;
   messageCounts.set(socketId, { count: 0, timestamp: Date.now() });
+  
+  // Initialize connection quality tracking
+  connectionQuality.set(socketId, {
+    latency: 0,
+    packetLoss: 0,
+    region: 'unknown',
+    lastPing: Date.now()
+  });
+  
+  // Handle ping for latency measurement
+  socket.on('ping', () => {
+    const now = Date.now();
+    const quality = connectionQuality.get(socketId);
+    if (quality) {
+      quality.latency = now - quality.lastPing;
+      quality.lastPing = now;
+      
+      // Log high latency connections for monitoring
+      if (quality.latency > 150) {
+        console.log(`High latency connection: ${socketId} - ${quality.latency}ms`);
+      }
+    }
+    socket.emit('pong');
+  });
   
   // Handle player join
   socket.on('join', (playerName) => {
@@ -154,9 +182,22 @@ io.on('connection', (socket) => {
   
   // Handle player input
   socket.on('input', (input) => {
+    // Adaptive rate limiting based on connection quality
+    const quality = connectionQuality.get(socketId);
+    let maxMessages = MAX_MESSAGES_PER_MINUTE;
+    
+    if (ADAPTIVE_RATE_LIMITING && quality) {
+      // Reduce rate limits for high-latency connections
+      if (quality.latency > 200) { // High latency (>200ms)
+        maxMessages = Math.floor(MAX_MESSAGES_PER_MINUTE * 0.7); // 30% reduction
+      } else if (quality.latency > 100) { // Medium latency (100-200ms)
+        maxMessages = Math.floor(MAX_MESSAGES_PER_MINUTE * 0.85); // 15% reduction
+      }
+    }
+    
     // Rate limiting check
     const msgData = messageCounts.get(socketId);
-    if (msgData && msgData.count > MAX_MESSAGES_PER_MINUTE) {
+    if (msgData && msgData.count > maxMessages) {
       return;
     }
     
@@ -248,6 +289,9 @@ io.on('connection', (socket) => {
     // Clean up rate limiting data
     messageCounts.delete(socketId);
     
+    // Clean up connection quality data
+    connectionQuality.delete(socketId);
+    
     // Update connection count for IP
     const clientIP = socket.handshake.headers['x-forwarded-for']?.split(',')[0]?.trim() || 
                     socket.handshake.headers['x-real-ip'] || 
@@ -270,11 +314,6 @@ io.on('connection', (socket) => {
   // Handle connection errors
   socket.on('error', (error) => {
     console.error(`Socket error for ${socket.id}:`, error);
-  });
-  
-  // Handle ping (keep-alive)
-  socket.on('ping', () => {
-    socket.emit('pong');
   });
 });
 

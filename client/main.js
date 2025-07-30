@@ -45,6 +45,11 @@ class GameClient {
       shooting: false
     };
     
+    // Input throttling for network optimization
+    this.lastInputSent = 0;
+    this.inputThrottleInterval = 50; // Send input every 50ms (20 times per second)
+    this.lastInputState = { ...this.input };
+    
     // Simple input tracking
     
     // Camera
@@ -255,9 +260,12 @@ class GameClient {
     
     // Create new connection
     this.socket = io({
-      transports: ['polling', 'websocket'],
+      transports: ['websocket', 'polling'], // Prioritize WebSocket for better performance
       timeout: 20000,
-      reconnection: false // Disable auto-reconnection for now
+      reconnection: true, // Enable reconnection for better cross-region stability
+      reconnectionAttempts: 5,
+      reconnectionDelay: 1000,
+      reconnectionDelayMax: 5000
     });
     
     this.setupSocketEvents();
@@ -818,10 +826,37 @@ class GameClient {
   startGameLoop() {
     const gameLoop = () => {
       this.updateLevelUpTimer();
+      
+      // Send throttled input to server
+      this.sendThrottledInput();
+      
       this.render();
       requestAnimationFrame(gameLoop);
     };
     gameLoop();
+  }
+  
+  sendThrottledInput() {
+    if (!this.socket || !this.socket.connected) return;
+    
+    const now = Date.now();
+    if (now - this.lastInputSent >= this.inputThrottleInterval) {
+      // Check if input has actually changed
+      const inputChanged = 
+        this.input.up !== this.lastInputState.up ||
+        this.input.down !== this.lastInputState.down ||
+        this.input.left !== this.lastInputState.left ||
+        this.input.right !== this.lastInputState.right ||
+        this.input.shooting !== this.lastInputState.shooting ||
+        Math.abs(this.input.mouseX - this.lastInputState.mouseX) > 5 ||
+        Math.abs(this.input.mouseY - this.lastInputState.mouseY) > 5;
+      
+      if (inputChanged) {
+        this.socket.emit('input', this.input);
+        this.lastInputState = { ...this.input };
+        this.lastInputSent = now;
+      }
+    }
   }
   
   render() {

@@ -1,5 +1,5 @@
 app = "io-arena-shooter"
-primary_region = "iad"
+primary_region = "dfw"
 
 [build]
 

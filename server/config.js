@@ -1,7 +1,7 @@
 const GAME_CONFIG = {
   // Server settings
-  TICK_RATE: 60, // 60 Hz = 16.67ms per tick (high performance for single player)
-  SNAPSHOT_RATE: 2, // Every 100ms (60 ticks / 6)
+  TICK_RATE: 30, // Reduced from 60 to 30 Hz = 33.33ms per tick (still smooth)
+  SNAPSHOT_RATE: 3, // Every 100ms (30 ticks / 3) - less frequent updates
   
   // Arena settings
   ARENA_WIDTH: 2000,
